@@ -71,9 +71,10 @@ from Lib import visualisaties as vis
 | Bestand       | Encoding  | Scheidingsteken | Opmerking                          |
 |---------------|-----------|-----------------|-------------------------------------|
 | rawdata.csv   | UTF-8     | `;`             | 1,16M+ rijen, `NULL` als tekst      |
-| Nace.csv      | latin-1   | `;`             | Geen kolomnamen in bestand          |
-| Risk.csv      | latin-1   | `;`             | Geen kolomnamen in bestand          |
-| Sex.csv       | latin-1   | `;`             | Geen kolomnamen, 3 rijen            |
+| Nace.csv      | UTF-8-sig | `;`             | Geen kolomnamen in bestand          |
+| Risk.csv      | UTF-8-sig | `;`             | Geen kolomnamen in bestand          |
+| Sex.csv       | UTF-8-sig | `;`             | Geen kolomnamen, 3 rijen            |
+| icd10.csv     | UTF-8-sig | `;`             | Geen kolomnamen, BOM aanwezig, 17 833 rijen |
 
 ### NULL-behandeling
 

@@ -111,6 +111,36 @@ def laad_geslacht(pad: str) -> pd.DataFrame:
     return df
 
 
+def laad_icd10(pad: str) -> pd.DataFrame:
+    """
+    Leest icd10.csv in (geen kolomnamen, latin-1 + BOM encoding).
+    Bevat ICD-10 codes met Franstalige omschrijvingen.
+
+    Parameters
+    ----------
+    pad : str
+        Pad naar icd10.csv
+
+    Returns
+    -------
+    pd.DataFrame met kolommen: pathology_icd10code, pathologie_omschrijving
+    """
+    df = pd.read_csv(
+        pad,
+        sep=";",
+        encoding="utf-8-sig",
+        header=None,
+        names=["pathology_icd10code", "pathologie_omschrijving"],
+        on_bad_lines="skip",
+    )
+    # Strip spaties en BOM-teken uit de code-kolom
+    df["pathology_icd10code"] = df["pathology_icd10code"].str.strip().str.lstrip("\ufeff")
+    df["pathologie_omschrijving"] = df["pathologie_omschrijving"].str.strip()
+    # Verwijder rijen zonder geldige ICD-10 code
+    df = df[df["pathology_icd10code"].notna() & (df["pathology_icd10code"] != "")]
+    return df
+
+
 def laad_alle_data(data_map: str) -> pd.DataFrame:
     """
     Laadt alle CSV-bestanden en mergt de opzoektabellen met de ruwe dataset.
@@ -122,7 +152,8 @@ def laad_alle_data(data_map: str) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame — verrijkt met kolommen: geslacht_label, nace_omschrijving, risk_omschrijving
+    pd.DataFrame — verrijkt met kolommen:
+        geslacht_label, nace_omschrijving, risk_omschrijving, pathologie_omschrijving
     """
     map_pad = Path(data_map)
 
@@ -133,6 +164,7 @@ def laad_alle_data(data_map: str) -> pd.DataFrame:
     df_nace = laad_nace(map_pad / "Nace.csv")
     df_risico = laad_risicos(map_pad / "Risk.csv")
     df_geslacht = laad_geslacht(map_pad / "Sex.csv")
+    df_icd10 = laad_icd10(map_pad / "icd10.csv")
 
     # Geslacht samenvoegen
     df = df.merge(
@@ -150,11 +182,19 @@ def laad_alle_data(data_map: str) -> pd.DataFrame:
     )
 
     # Risico-omschrijving samenvoegen
-    # Trim risk_code voor de merge (ruwe data kan spaties bevatten)
     df["risk_code"] = df["risk_code"].str.strip()
     df = df.merge(
         df_risico,
         on="risk_code",
+        how="left",
+    )
+
+    # ICD-10 omschrijving samenvoegen
+    # Strip eerst de pathology_icd10code zodat de merge correct werkt
+    df["pathology_icd10code"] = df["pathology_icd10code"].str.strip()
+    df = df.merge(
+        df_icd10,
+        on="pathology_icd10code",
         how="left",
     )
 

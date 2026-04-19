@@ -5,6 +5,7 @@ Alle plotfuncties voor de data-analyse en de Streamlit-applicatie.
 Elke functie accepteert een (gefilterde) DataFrame en retourneert een Plotly-figuur.
 """
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
@@ -39,6 +40,35 @@ LAYOUT_STIJL = dict(
     ),
     margin=dict(l=20, r=20, t=55, b=20),
 )
+
+
+# ─── Hulpfunctie ICD-10 labels ──────────────────────────────────────────────
+
+def _icd10_label(df: pd.DataFrame) -> pd.Series:
+    """
+    Geeft een Series terug met 'CODE — omschrijving' als label per rij.
+    Valt terug op enkel de code als pathologie_omschrijving niet beschikbaar is.
+    """
+    if "pathologie_omschrijving" in df.columns:
+        return (
+            df["pathology_icd10code"].fillna("Onbekend")
+            + " — "
+            + df["pathologie_omschrijving"].fillna("")
+        )
+    return df["pathology_icd10code"].fillna("Onbekend")
+
+
+def _icd10_label_map(df: pd.DataFrame) -> dict:
+    """
+    Geeft een dict {icd10code: 'CODE — omschrijving'} terug voor gebruik in plots.
+    """
+    if "pathologie_omschrijving" in df.columns:
+        dedup = df[["pathology_icd10code", "pathologie_omschrijving"]].drop_duplicates("pathology_icd10code")
+        return {
+            row["pathology_icd10code"]: f"{row['pathology_icd10code']} — {row['pathologie_omschrijving'] or ''}"
+            for _, row in dedup.iterrows()
+        }
+    return {}
 
 
 # ─── Algemene helper ────────────────────────────────────────────────────────
@@ -155,13 +185,23 @@ def plot_top10_pathologieen(df: pd.DataFrame, titel_suffix: str = "") -> go.Figu
     -------
     go.Figure
     """
-    tellingen = df["pathology_icd10code"].dropna().value_counts()
+    # Label samenstellen: code + omschrijving (indien beschikbaar)
+    if "pathologie_omschrijving" in df.columns:
+        label = (
+            df["pathology_icd10code"].fillna("Onbekend")
+            + " — "
+            + df["pathologie_omschrijving"].fillna("")
+        )
+    else:
+        label = df["pathology_icd10code"].fillna("Onbekend")
+
+    tellingen = label[df["pathology_icd10code"].notna()].value_counts()
 
     titel = "Top 10 meest voorkomende pathologieën"
     if titel_suffix:
         titel += f" ({titel_suffix})"
 
-    return maak_top_barchart(tellingen, titel, "Aantal", "ICD-10 code", top_n=10)
+    return maak_top_barchart(tellingen, titel, "Aantal", "Pathologie", top_n=10)
 
 
 # ─── Top 10 risico-pathologie combinaties ────────────────────────────────────
@@ -179,11 +219,17 @@ def plot_top10_risico_pathologie_combo(df: pd.DataFrame, titel_suffix: str = "")
     -------
     go.Figure
     """
-    combo = (
-        df["risk_code"].fillna("Onbekend")
-        + " + "
-        + df["pathology_icd10code"].fillna("Onbekend")
+    risico_label = (
+        df["risk_code"].fillna("Onbekend") + " — " + df["risk_omschrijving"].fillna("")
+        if "risk_omschrijving" in df.columns
+        else df["risk_code"].fillna("Onbekend")
     )
+    pathologie_label = (
+        df["pathology_icd10code"].fillna("Onbekend") + " — " + df["pathologie_omschrijving"].fillna("")
+        if "pathologie_omschrijving" in df.columns
+        else df["pathology_icd10code"].fillna("Onbekend")
+    )
+    combo = risico_label + "  ×  " + pathologie_label
     tellingen = combo.value_counts()
 
     titel = "Top 10 meest voorkomende risico–pathologie combinaties"
@@ -215,24 +261,26 @@ def plot_pathologie_per_geslacht(df: pd.DataFrame, top_n: int = 5) -> go.Figure:
 
     # Top-n pathologieën over alle geslachten
     top_pats = df["pathology_icd10code"].dropna().value_counts().head(top_n).index.tolist()
+    label_map = _icd10_label_map(df)
 
     df_gefilterd = df[df["pathology_icd10code"].isin(top_pats)].copy()
+    df_gefilterd["pathologie_label"] = df_gefilterd["pathology_icd10code"].map(label_map).fillna(df_gefilterd["pathology_icd10code"])
 
     tellingen = (
-        df_gefilterd.groupby([geslacht_kolom, "pathology_icd10code"])
+        df_gefilterd.groupby([geslacht_kolom, "pathologie_label"])
         .size()
         .reset_index(name="aantal")
     )
 
     fig = px.bar(
         tellingen,
-        x="pathology_icd10code",
+        x="pathologie_label",
         y="aantal",
         color=geslacht_kolom,
         barmode="group",
         title=f"Top {top_n} pathologieën per geslacht",
         labels={
-            "pathology_icd10code": "ICD-10 code",
+            "pathologie_label": "Pathologie",
             "aantal": "Aantal",
             geslacht_kolom: "Geslacht",
         },
@@ -261,12 +309,15 @@ def plot_pathologie_per_seizoen(df: pd.DataFrame, top_n: int = 5) -> go.Figure:
         return go.Figure().update_layout(title="Geen seizoensdata beschikbaar")
 
     top_pats = df["pathology_icd10code"].dropna().value_counts().head(top_n).index.tolist()
+    label_map = _icd10_label_map(df)
+
     df_gefilterd = df[df["pathology_icd10code"].isin(top_pats)].copy()
+    df_gefilterd["pathologie_label"] = df_gefilterd["pathology_icd10code"].map(label_map).fillna(df_gefilterd["pathology_icd10code"])
 
     volgorde = ["Lente", "Zomer", "Herfst", "Winter"]
 
     tellingen = (
-        df_gefilterd.groupby(["seizoen", "pathology_icd10code"])
+        df_gefilterd.groupby(["seizoen", "pathologie_label"])
         .size()
         .reset_index(name="aantal")
     )
@@ -277,13 +328,13 @@ def plot_pathologie_per_seizoen(df: pd.DataFrame, top_n: int = 5) -> go.Figure:
         tellingen,
         x="seizoen",
         y="aantal",
-        color="pathology_icd10code",
+        color="pathologie_label",
         barmode="group",
         title=f"Top {top_n} pathologieën per seizoen",
         labels={
             "seizoen": "Seizoen",
             "aantal": "Aantal",
-            "pathology_icd10code": "ICD-10 code",
+            "pathologie_label": "Pathologie",
         },
         color_discrete_sequence=KLEUR_REEKS,
     )
@@ -330,14 +381,24 @@ def plot_risico_per_nace(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
     # Verkort lange NACE-namen voor leesbaarheid
     pivot.index = [str(n)[:50] + "…" if len(str(n)) > 50 else str(n) for n in pivot.index]
 
+    werkelijke_waarden = pivot.values.astype(int)
+    # Log-schaal voor kleur zodat uitschieters de schaal niet domineren
+    log_waarden = np.log1p(pivot.values)
+
     fig = go.Figure(go.Heatmap(
-        z=pivot.values,
+        z=log_waarden,
         x=pivot.columns.tolist(),
         y=pivot.index.tolist(),
         colorscale="Blues",
-        text=pivot.values.astype(int),
+        text=werkelijke_waarden,
         texttemplate="%{text}",
         showscale=True,
+        colorbar=dict(
+            title="Aantal (log)",
+            tickvals=[np.log1p(v) for v in [1, 10, 100, 500, 1000, 5000, 10000]],
+            ticktext=["1", "10", "100", "500", "1k", "5k", "10k"],
+        ),
+        hovertemplate="NACE: %{y}<br>Risico: %{x}<br>Aantal: %{text}<extra></extra>",
     ))
     fig.update_layout(
         **LAYOUT_STIJL,
@@ -368,33 +429,46 @@ def plot_pathologie_per_nace(df: pd.DataFrame, top_n: int = 10) -> go.Figure:
 
     top_nace = df[nace_kolom].dropna().value_counts().head(top_n).index.tolist()
     top_pats = df["pathology_icd10code"].dropna().value_counts().head(5).index.tolist()
+    label_map = _icd10_label_map(df)
 
     df_gefilterd = df[
         df[nace_kolom].isin(top_nace) & df["pathology_icd10code"].isin(top_pats)
     ].copy()
+    df_gefilterd["pathologie_label"] = df_gefilterd["pathology_icd10code"].map(label_map).fillna(df_gefilterd["pathology_icd10code"])
 
     tellingen = (
-        df_gefilterd.groupby([nace_kolom, "pathology_icd10code"])
+        df_gefilterd.groupby([nace_kolom, "pathologie_label"])
         .size()
         .reset_index(name="aantal")
     )
 
-    pivot = tellingen.pivot(index=nace_kolom, columns="pathology_icd10code", values="aantal").fillna(0)
+    pivot = tellingen.pivot(index=nace_kolom, columns="pathologie_label", values="aantal").fillna(0)
     pivot.index = [str(n)[:50] + "…" if len(str(n)) > 50 else str(n) for n in pivot.index]
+    pivot.columns = [str(c)[:40] + "…" if len(str(c)) > 40 else str(c) for c in pivot.columns]
+
+    werkelijke_waarden = pivot.values.astype(int)
+    # Log-schaal voor kleur zodat uitschieters de schaal niet domineren
+    log_waarden = np.log1p(pivot.values)
 
     fig = go.Figure(go.Heatmap(
-        z=pivot.values,
+        z=log_waarden,
         x=pivot.columns.tolist(),
         y=pivot.index.tolist(),
         colorscale="Greens",
-        text=pivot.values.astype(int),
+        text=werkelijke_waarden,
         texttemplate="%{text}",
         showscale=True,
+        colorbar=dict(
+            title="Aantal (log)",
+            tickvals=[np.log1p(v) for v in [1, 10, 100, 500, 1000, 5000, 10000]],
+            ticktext=["1", "10", "100", "500", "1k", "5k", "10k"],
+        ),
+        hovertemplate="NACE: %{y}<br>Pathologie: %{x}<br>Aantal: %{text}<extra></extra>",
     ))
     fig.update_layout(
         **LAYOUT_STIJL,
         title=f"Meest voorkomende pathologieën per NACE-sector (top {top_n} sectoren)",
-        xaxis_title="ICD-10 code",
+        xaxis_title="Pathologie",
         yaxis_title="NACE-sector",
         height=max(400, top_n * 50),
     )
@@ -483,14 +557,16 @@ def plot_pathologie_per_functiecode(df: pd.DataFrame, top_n: int = 10) -> go.Fig
 
     top_functies = df_met_functie["employment_functioncode"].value_counts().head(top_n).index.tolist()
     top_pats = df_met_functie["pathology_icd10code"].dropna().value_counts().head(5).index.tolist()
+    label_map = _icd10_label_map(df_met_functie)
 
     df_gefilterd = df_met_functie[
         df_met_functie["employment_functioncode"].isin(top_functies)
         & df_met_functie["pathology_icd10code"].isin(top_pats)
-    ]
+    ].copy()
+    df_gefilterd["pathologie_label"] = df_gefilterd["pathology_icd10code"].map(label_map).fillna(df_gefilterd["pathology_icd10code"])
 
     tellingen = (
-        df_gefilterd.groupby(["employment_functioncode", "pathology_icd10code"])
+        df_gefilterd.groupby(["employment_functioncode", "pathologie_label"])
         .size()
         .reset_index(name="aantal")
     )
@@ -499,13 +575,13 @@ def plot_pathologie_per_functiecode(df: pd.DataFrame, top_n: int = 10) -> go.Fig
         tellingen,
         x="employment_functioncode",
         y="aantal",
-        color="pathology_icd10code",
+        color="pathologie_label",
         barmode="group",
         title=f"Meest voorkomende pathologieën per functiecode (top {top_n})",
         labels={
             "employment_functioncode": "Functiecode",
             "aantal": "Aantal",
-            "pathology_icd10code": "ICD-10 code",
+            "pathologie_label": "Pathologie",
         },
         color_discrete_sequence=KLEUR_REEKS,
     )
@@ -537,10 +613,13 @@ def plot_pathologie_per_leeftijdsgroep(df: pd.DataFrame, top_n: int = 5) -> go.F
     ].copy()
 
     top_pats = df_geldig["pathology_icd10code"].dropna().value_counts().head(top_n).index.tolist()
-    df_gefilterd = df_geldig[df_geldig["pathology_icd10code"].isin(top_pats)]
+    label_map = _icd10_label_map(df_geldig)
+
+    df_gefilterd = df_geldig[df_geldig["pathology_icd10code"].isin(top_pats)].copy()
+    df_gefilterd["pathologie_label"] = df_gefilterd["pathology_icd10code"].map(label_map).fillna(df_gefilterd["pathology_icd10code"])
 
     tellingen = (
-        df_gefilterd.groupby(["leeftijdsgroep", "pathology_icd10code"], observed=True)
+        df_gefilterd.groupby(["leeftijdsgroep", "pathologie_label"], observed=True)
         .size()
         .reset_index(name="aantal")
     )
@@ -549,13 +628,13 @@ def plot_pathologie_per_leeftijdsgroep(df: pd.DataFrame, top_n: int = 5) -> go.F
         tellingen,
         x="leeftijdsgroep",
         y="aantal",
-        color="pathology_icd10code",
+        color="pathologie_label",
         barmode="group",
         title=f"Top {top_n} pathologieën per leeftijdsgroep",
         labels={
             "leeftijdsgroep": "Leeftijdsgroep",
             "aantal": "Aantal",
-            "pathology_icd10code": "ICD-10 code",
+            "pathologie_label": "Pathologie",
         },
         color_discrete_sequence=KLEUR_REEKS,
     )
@@ -567,4 +646,191 @@ def plot_pathologie_per_leeftijdsgroep(df: pd.DataFrame, top_n: int = 5) -> go.F
             "50–59", "60–69", "70–79", "80–89", "90–99", "100+",
         ],
     )
+    return fig
+
+
+# ─── Pathologieën per leeftijdsgroep, gesplitst per geslacht ─────────────────
+
+def plot_pathologie_per_leeftijdsgroep_per_geslacht(
+    df: pd.DataFrame, top_n: int = 5
+) -> go.Figure:
+    """
+    Top-n meest voorkomende pathologieën per leeftijdsgroep, gesplitst per geslacht.
+    Toont twee grafieken naast elkaar (Man / Vrouw).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    top_n : int
+
+    Returns
+    -------
+    go.Figure
+    """
+    from plotly.subplots import make_subplots
+
+    if "leeftijdsgroep" not in df.columns:
+        return go.Figure().update_layout(title="Geen leeftijdsgroep-data beschikbaar")
+
+    geslacht_kolom = "geslacht_label" if "geslacht_label" in df.columns else "employee_sex"
+
+    # Enkel geldige leeftijden en bekende geslachten
+    df_geldig = df[
+        df["employee_age_start_pathology"].between(0, 100)
+        & df[geslacht_kolom].isin(["Man", "Vrouw"])
+    ].copy()
+
+    if df_geldig.empty:
+        return go.Figure().update_layout(title="Geen data beschikbaar voor Man/Vrouw filter")
+
+    top_pats = df_geldig["pathology_icd10code"].dropna().value_counts().head(top_n).index.tolist()
+    label_map = _icd10_label_map(df_geldig)
+
+    df_geldig["pathologie_label"] = df_geldig["pathology_icd10code"].map(label_map).fillna(df_geldig["pathology_icd10code"])
+
+    leeftijdsvolgorde = [
+        "0–9", "10–19", "20–29", "30–39", "40–49",
+        "50–59", "60–69", "70–79", "80–89", "90–99", "100+",
+    ]
+    kleuren = dict(zip(
+        [label_map.get(p, p) for p in top_pats],
+        KLEUR_REEKS[:top_n],
+    ))
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=["Man", "Vrouw"],
+        shared_yaxes=False,
+    )
+
+    for kolom_idx, geslacht in enumerate(["Man", "Vrouw"], start=1):
+        df_g = df_geldig[
+            (df_geldig[geslacht_kolom] == geslacht)
+            & df_geldig["pathology_icd10code"].isin(top_pats)
+        ]
+
+        tellingen = (
+            df_g.groupby(["leeftijdsgroep", "pathologie_label"], observed=True)
+            .size()
+            .reset_index(name="aantal")
+        )
+        tellingen["leeftijdsgroep"] = pd.Categorical(
+            tellingen["leeftijdsgroep"], categories=leeftijdsvolgorde, ordered=True
+        )
+        tellingen = tellingen.sort_values("leeftijdsgroep")
+
+        for pathologie in tellingen["pathologie_label"].unique():
+            rijen = tellingen[tellingen["pathologie_label"] == pathologie]
+            kleur = kleuren.get(pathologie, KLEUR_PRIMAIR)
+            fig.add_trace(
+                go.Bar(
+                    name=pathologie,
+                    x=rijen["leeftijdsgroep"].astype(str),
+                    y=rijen["aantal"],
+                    marker_color=kleur,
+                    legendgroup=pathologie,
+                    showlegend=(kolom_idx == 1),  # Legenda enkel links tonen
+                    hovertemplate=f"<b>{pathologie}</b><br>Leeftijdsgroep: %{{x}}<br>Aantal: %{{y}}<extra></extra>",
+                ),
+                row=1, col=kolom_idx,
+            )
+
+    fig.update_layout(
+        **LAYOUT_STIJL,
+        title=f"Top {top_n} pathologieën per leeftijdsgroep — Man vs. Vrouw",
+        barmode="group",
+        height=500,
+    )
+    fig.update_xaxes(categoryorder="array", categoryarray=leeftijdsvolgorde)
+    return fig
+
+
+# ─── Seizoensgebonden pathologieën ───────────────────────────────────────────
+
+def plot_seizoensgebonden_pathologieen(
+    df: pd.DataFrame,
+    drempel: float = 0.70,
+    min_gevallen: int = 50,
+    top_n: int = 10,
+) -> go.Figure:
+    """
+    Zoekt pathologieën die uitsluitend (of sterk overheersend) in één seizoen voorkomen.
+
+    Een pathologie wordt als seizoensgebonden beschouwd als:
+    - Minstens `min_gevallen` totale gevallen
+    - Minstens `drempel` (bv. 70%) van de gevallen valt in één seizoen
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    drempel : float
+        Minimale fractie in één seizoen (standaard 0.70 = 70%)
+    min_gevallen : int
+        Minimaal aantal gevallen om mee te tellen (filtert zeldzame codes)
+    top_n : int
+        Maximum aantal seizoensgebonden pathologieën om te tonen
+
+    Returns
+    -------
+    go.Figure
+    """
+    if "seizoen" not in df.columns:
+        return go.Figure().update_layout(title="Geen seizoensdata beschikbaar")
+
+    volgorde = ["Lente", "Zomer", "Herfst", "Winter"]
+    label_map = _icd10_label_map(df)
+
+    # Bereken het aantal gevallen per pathologie per seizoen
+    tellingen = (
+        df[df["pathology_icd10code"].notna() & df["seizoen"].notna()]
+        .groupby(["pathology_icd10code", "seizoen"])
+        .size()
+        .reset_index(name="aantal")
+    )
+
+    # Totaal per pathologie
+    totaal = tellingen.groupby("pathology_icd10code")["aantal"].sum().rename("totaal")
+    tellingen = tellingen.join(totaal, on="pathology_icd10code")
+
+    # Fractie per seizoen
+    tellingen["fractie"] = tellingen["aantal"] / tellingen["totaal"]
+
+    # Bepaal het dominante seizoen per pathologie
+    idx_max = tellingen.groupby("pathology_icd10code")["fractie"].idxmax()
+    dominant = tellingen.loc[idx_max, ["pathology_icd10code", "seizoen", "fractie", "totaal"]].copy()
+    dominant.columns = ["pathology_icd10code", "dominant_seizoen", "max_fractie", "totaal"]
+
+    # Filter: drempel en minimum gevallen
+    seizoensgebonden = dominant[
+        (dominant["max_fractie"] >= drempel) & (dominant["totaal"] >= min_gevallen)
+    ].sort_values("max_fractie", ascending=False).head(top_n)
+
+    if seizoensgebonden.empty:
+        return go.Figure().update_layout(
+            title=f"Geen seizoensgebonden pathologieën gevonden (drempel: {drempel:.0%}, min. {min_gevallen} gevallen)",
+            annotations=[dict(text="Verlaag de drempel of het minimum aantal gevallen", showarrow=False, x=0.5, y=0.5)],
+        )
+
+    # Haal alle seizoensdata op voor de gevonden pathologieën
+    codes = seizoensgebonden["pathology_icd10code"].tolist()
+    df_plot = tellingen[tellingen["pathology_icd10code"].isin(codes)].copy()
+    df_plot["pathologie_label"] = df_plot["pathology_icd10code"].map(label_map).fillna(df_plot["pathology_icd10code"])
+    df_plot["seizoen"] = pd.Categorical(df_plot["seizoen"], categories=volgorde, ordered=True)
+    df_plot = df_plot.sort_values(["pathologie_label", "seizoen"])
+
+    fig = px.bar(
+        df_plot,
+        x="seizoen",
+        y="aantal",
+        color="pathologie_label",
+        barmode="group",
+        title=f"Seizoensgebonden pathologieën (≥{drempel:.0%} in één seizoen, min. {min_gevallen} gevallen)",
+        labels={
+            "seizoen": "Seizoen",
+            "aantal": "Aantal",
+            "pathologie_label": "Pathologie",
+        },
+        color_discrete_sequence=KLEUR_REEKS,
+    )
+    fig.update_layout(**LAYOUT_STIJL, height=500)
     return fig

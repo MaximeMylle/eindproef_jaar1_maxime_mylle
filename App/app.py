@@ -228,9 +228,29 @@ with tab_combinaties:
         use_container_width=True,
     )
 
-    st.subheader("Pathologieën per seizoen")
+    st.divider()
+
+    col_seizoen_l, col_seizoen_r = st.columns([3, 1])
+    with col_seizoen_l:
+        st.subheader("Pathologieën per seizoen")
+    with col_seizoen_r:
+        top_n_seizoen = st.selectbox(
+            "Aantal pathologieën",
+            options=[5, 10, 20],
+            index=0,
+            key="top_n_seizoen",
+        )
     st.plotly_chart(
-        vis.plot_pathologie_per_seizoen(df_gefilterd),
+        vis.plot_pathologie_per_seizoen(df_gefilterd, top_n=top_n_seizoen),
+        use_container_width=True,
+    )
+
+    st.divider()
+
+    st.subheader("Seizoensgebonden pathologieën")
+    st.caption("Pathologieën waarbij ≥ 70% van de gevallen in één seizoen valt en minstens 50 gevallen.")
+    st.plotly_chart(
+        vis.plot_seizoensgebonden_pathologieen(df_gefilterd, drempel=0.70, min_gevallen=50, top_n=10),
         use_container_width=True,
     )
 
@@ -247,8 +267,28 @@ with tab_demografie:
             use_container_width=True,
         )
     with col_r:
+        st.subheader(" ")  # Uitlijning met linker kolom
+
+    st.divider()
+
+    col_leeftijd_l, col_leeftijd_r = st.columns([3, 1])
+    with col_leeftijd_l:
         st.subheader("Pathologieën per leeftijdsgroep")
-        st.plotly_chart(
-            vis.plot_pathologie_per_leeftijdsgroep(df_gefilterd),
-            use_container_width=True,
+    with col_leeftijd_r:
+        top_n_leeftijd = st.selectbox(
+            "Aantal pathologieën",
+            options=[5, 10, 20],
+            index=0,
+            key="top_n_leeftijd",
         )
+
+    st.plotly_chart(
+        vis.plot_pathologie_per_leeftijdsgroep(df_gefilterd, top_n=top_n_leeftijd),
+        use_container_width=True,
+    )
+
+    st.subheader("Pathologieën per leeftijdsgroep — Man vs. Vrouw")
+    st.plotly_chart(
+        vis.plot_pathologie_per_leeftijdsgroep_per_geslacht(df_gefilterd, top_n=top_n_leeftijd),
+        use_container_width=True,
+    )
