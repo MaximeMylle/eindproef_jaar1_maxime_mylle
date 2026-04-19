@@ -1,0 +1,16 @@
+# Databestanden — niet in de repo (te groot / gevoelig)
+Data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/
