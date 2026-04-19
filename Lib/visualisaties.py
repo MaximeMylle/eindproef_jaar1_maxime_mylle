@@ -139,6 +139,72 @@ def maak_top_barchart(
     return fig
 
 
+# ─── Top 10 actieve risico's en pathologieën ────────────────────────────────
+
+def plot_top10_actieve_risicos(df: pd.DataFrame, titel_suffix: str = "") -> go.Figure:
+    """
+    Top 10 meest voorkomende **actieve** risico's.
+    Actief = geen einddatum (risk_enddate is leeg).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    titel_suffix : str
+
+    Returns
+    -------
+    go.Figure
+    """
+    df_actief = df[df["risk_enddate"].isna()].copy()
+
+    if "risk_omschrijving" in df_actief.columns:
+        label = df_actief["risk_code"].fillna("Onbekend") + " — " + df_actief["risk_omschrijving"].fillna("")
+    else:
+        label = df_actief["risk_code"].fillna("Onbekend")
+
+    tellingen = label.value_counts()
+
+    titel = "Top 10 actieve risico's (zonder einddatum)"
+    if titel_suffix:
+        titel += f" ({titel_suffix})"
+
+    return maak_top_barchart(tellingen, titel, "Aantal", "Risico", top_n=10)
+
+
+def plot_top10_actieve_pathologieen(df: pd.DataFrame, titel_suffix: str = "") -> go.Figure:
+    """
+    Top 10 meest voorkomende **actieve** pathologieën.
+    Actief = geen einddatum (pathology_enddate is leeg).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    titel_suffix : str
+
+    Returns
+    -------
+    go.Figure
+    """
+    df_actief = df[df["pathology_enddate"].isna()].copy()
+
+    if "pathologie_omschrijving" in df_actief.columns:
+        label = (
+            df_actief["pathology_icd10code"].fillna("Onbekend")
+            + " — "
+            + df_actief["pathologie_omschrijving"].fillna("")
+        )
+    else:
+        label = df_actief["pathology_icd10code"].fillna("Onbekend")
+
+    tellingen = label[df_actief["pathology_icd10code"].notna()].value_counts()
+
+    titel = "Top 10 actieve pathologieën (zonder einddatum)"
+    if titel_suffix:
+        titel += f" ({titel_suffix})"
+
+    return maak_top_barchart(tellingen, titel, "Aantal", "Pathologie", top_n=10)
+
+
 # ─── Top 10 risico's ────────────────────────────────────────────────────────
 
 def plot_top10_risicos(df: pd.DataFrame, titel_suffix: str = "") -> go.Figure:
