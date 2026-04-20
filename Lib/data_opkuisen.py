@@ -175,6 +175,31 @@ def filter_laatste_n_jaar(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
     return df[df["pathology_startdate"] >= grens].copy()
 
 
+def filter_op_periode(df: pd.DataFrame, jaar_van: int, jaar_tot: int) -> pd.DataFrame:
+    """
+    Filtert de dataset op een specifieke periode op basis van pathology_startdate.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+    jaar_van : int
+        Beginjaar (inclusief)
+    jaar_tot : int
+        Eindjaar (exclusief)
+
+    Returns
+    -------
+    pd.DataFrame
+    """
+    if "pathology_startdate" not in df.columns:
+        return df
+
+    return df[
+        (df["pathology_startdate"].dt.year >= jaar_van)
+        & (df["pathology_startdate"].dt.year < jaar_tot)
+    ].copy()
+
+
 def kuise_data_op(df: pd.DataFrame) -> pd.DataFrame:
     """
     Voert alle opkuisstappen uit in de juiste volgorde:

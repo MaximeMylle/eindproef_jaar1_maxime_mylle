@@ -900,3 +900,58 @@ def plot_seizoensgebonden_pathologieen(
     )
     fig.update_layout(**LAYOUT_STIJL, height=500)
     return fig
+
+
+# ─── Coronavirus (B97.2) over tijd ───────────────────────────────────────────
+
+def plot_coronavirus_over_tijd(df: pd.DataFrame) -> go.Figure:
+    """
+    Lijngrafiek van het maandelijks aantal gevallen van pathologie B97.2
+    (coronavirus als oorzaak van elders geclassificeerde ziekten),
+    gefilterd op de periode 2018 tot heden.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    go.Figure
+    """
+    if "pathology_startdate" not in df.columns or "pathology_icd10code" not in df.columns:
+        return go.Figure().update_layout(title="Geen datum- of pathologiedata beschikbaar")
+
+    df_covid = df[
+        (df["pathology_icd10code"] == "B97.2")
+        & (df["pathology_startdate"].dt.year >= 2018)
+    ].copy()
+
+    if df_covid.empty:
+        return go.Figure().update_layout(
+            title="B97.2 — Coronavirus: geen gevallen gevonden vanaf 2018",
+            annotations=[dict(text="Geen data", showarrow=False, x=0.5, y=0.5)],
+        )
+
+    # Groepeer per maand
+    df_covid["maand"] = df_covid["pathology_startdate"].dt.to_period("M").dt.to_timestamp()
+    per_maand = df_covid.groupby("maand").size().reset_index(name="aantal")
+    per_maand = per_maand.sort_values("maand")
+
+    fig = go.Figure(go.Scatter(
+        x=per_maand["maand"],
+        y=per_maand["aantal"],
+        mode="lines+markers",
+        line=dict(color=KLEUR_PRIMAIR, width=2),
+        marker=dict(size=5, color=KLEUR_PRIMAIR),
+        hovertemplate="Maand: %{x|%B %Y}<br>Aantal: %{y}<extra></extra>",
+    ))
+
+    fig.update_layout(
+        **LAYOUT_STIJL,
+        title="B97.2 — Coronavirus: aantal gevallen per maand (2018–heden)",
+        xaxis_title="Maand",
+        yaxis_title="Aantal gevallen",
+        height=450,
+    )
+    fig.update_xaxes(tickformat="%b %Y", tickangle=-45, dtick="M3")
+    return fig
