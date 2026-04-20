@@ -1,7 +1,28 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(pip install *)",
+      "Read(//c/Users/mmylle/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/78bfdf9d-697f-406d-8f10-d8f33031b893/3d845eb5-3d0a-455c-8ad4-5f0b58ae4cd3/skills/pptx/**)",
+      "Bash(python -m markitdown \"C:\\\\Users\\\\mmylle\\\\Documents\\\\__0_DATA_SCIENCE\\\\EINDWERK\\\\PRESENTATIE\\\\Maxime_Mylle_Pitch_Data scientist – jaar 1 .pptx\")",
+      "Bash(npm list *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('pptxgenjs'\\); console.log\\('ok'\\)\")",
+      "Bash(npm root *)",
+      "Bash(node -e \"const pptx = require\\('C:/Users/mmylle/AppData/Roaming/npm/node_modules/pptxgenjs'\\); console.log\\('ok', typeof pptx\\)\")",
+      "Bash(node maak_presentatie.js)",
+      "Bash(python \"C:\\\\Users\\\\mmylle\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\78bfdf9d-697f-406d-8f10-d8f33031b893\\\\3d845eb5-3d0a-455c-8ad4-5f0b58ae4cd3\\\\skills\\\\pptx\\\\scripts\\\\office\\\\soffice.py\" --headless --convert-to pdf Maxime_Mylle_Eindwerk_Resultaten.pptx)",
+      "Bash(py --version)",
+      "Bash(where python *)",
+      "Bash(python3 \"C:/Users/mmylle/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/78bfdf9d-697f-406d-8f10-d8f33031b893/3d845eb5-3d0a-455c-8ad4-5f0b58ae4cd3/skills/pptx/scripts/office/soffice.py\" --headless --convert-to pdf Maxime_Mylle_Eindwerk_Resultaten.pptx)",
+      "Bash(python3 \"/c/Users/mmylle/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/78bfdf9d-697f-406d-8f10-d8f33031b893/3d845eb5-3d0a-455c-8ad4-5f0b58ae4cd3/skills/pptx/scripts/office/soffice.py\" --headless --convert-to pdf Maxime_Mylle_Eindwerk_Resultaten.pptx)",
+      "Bash(python3 -c \"import sys; print\\(sys.executable\\)\")",
+      "Read(//c/Program Files/LibreOffice/program/**)",
+      "Read(//c/Program Files \\(x86\\)/LibreOffice/program/**)",
+      "Bash(python3 -m markitdown Maxime_Mylle_Eindwerk_Resultaten.pptx)",
+      "Bash(powershell -Command ' *)",
+      "Bash(python3 -)",
+      "Bash(rm -f slide-*.jpg)"
     ]
   }
 }
